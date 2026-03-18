@@ -128,6 +128,8 @@ You are a news assistant.
 
 Answer ONLY using the provided articles.
 Give a clear answer and cite sources.
+Give concise answer with the upper limit biein 200 tokens.
+
 
 Articles:
 {context}
