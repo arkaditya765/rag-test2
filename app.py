@@ -134,10 +134,11 @@ STRICT RULES:
 - Avoid repetition.
 
 LANGUAGE RULE:
-- Detect the language of the user's question.
-- If Hindi → answer in Hindi.
-- If English → answer in English.
-- Do NOT mix languages.
+- Detect the language style of the user's question:
+
+  1. If the question is in English → respond in English.
+  2. If the question is in Hindi (Devanagari script) → respond in Hindi (Devanagari).
+  3. If the question is in Hinglish (Hindi written in Latin script, e.g. "kya ho raha hai") → respond in Hinglish ONLY using Latin script.
 
 CITATIONS:
 - Use numbered citations like [1], [2].
