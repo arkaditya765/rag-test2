@@ -1,19 +1,16 @@
 import streamlit as st
 from supabase import create_client
 from sentence_transformers import SentenceTransformer
-from dotenv import load_dotenv
 import google.generativeai as genai
 import urllib.parse
 import os
 
 # -------------------------------
-# Load env
+# Load secrets (for deployment)
 # -------------------------------
-load_dotenv()
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # -------------------------------
 # Init clients
@@ -99,7 +96,7 @@ elif st.session_state.page == "chat":
         # Step 1: Embed query
         query_embedding = model.encode(prompt).tolist()
 
-        # Step 2: Retrieve articles (story-specific)
+        # Step 2: Retrieve articles
         result = supabase.rpc(
             "match_articles_by_story",
             {
@@ -111,10 +108,11 @@ elif st.session_state.page == "chat":
 
         articles = result.data
 
-        # Step 3: Build context
+        # Step 3: Build context (NUMBERED)
         context = ""
-        for item in articles:
+        for i, item in enumerate(articles, start=1):
             context += f"""
+[{i}]
 Title: {item['article_title']}
 Source: {item['article_source']}
 URL: {item['article_url']}
@@ -122,62 +120,66 @@ Content: {item['article_content']}
 ---
 """
 
-        # Step 4: Ask Gemini
+        # Step 4: Prompt
         full_prompt = f"""
-You are a news assistant.
-
 You are a precise news analysis assistant.
 
 Your task is to answer the user's question using ONLY the provided articles.
 
 STRICT RULES:
 - Do NOT use outside knowledge.
-- If the answer is not in the articles, say: "The provided articles do not contain enough information."
+- If the answer is not in the articles, say:
+  "The provided articles do not contain enough information."
 - Keep the answer concise (max ~150–200 words).
-- Focus only on the most relevant information.
 - Avoid repetition.
 
+LANGUAGE RULE:
+- Detect the language of the user's question.
+- If Hindi → answer in Hindi.
+- If English → answer in English.
+- Do NOT mix languages.
+
 CITATIONS:
-- Support key statements using sources.
-- Use this format: (Source: <article_title>)
-- Do NOT make up sources.
+- Use numbered citations like [1], [2].
+- Each number corresponds to an article above.
+- Use citations inline in the answer.
+- Do NOT write full source names in the answer.
 
 STYLE:
-- Clear, factual, and direct.
-- No fluff, no speculation.
-Answer ONLY using the provided articles.
-Give a clear answer and cite sources.
-Give concise answer with the upper limit biein 200 tokens.
+- Clear, factual, direct.
 
-
-Articles:
+ARTICLES:
 {context}
 
-Question:
+QUESTION:
 {prompt}
+
+ANSWER:
 """
 
+        # Step 5: Generate answer
         response = gemini_model.generate_content(full_prompt)
         answer = response.text
 
-        # Step 5: Format response with sources
+        # Step 6: Format response with numbered sources
         formatted_answer = answer + "\n\n### Sources:\n"
 
-        for item in articles:
+        for i, item in enumerate(articles, start=1):
             favicon = get_favicon(item["article_url"])
             formatted_answer += f"""
 <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+    <span><b>[{i}]</b></span>
     <img src="{favicon}" width="20">
     <a href="{item['article_url']}" target="_blank">{item['article_title']}</a>
 </div>
 """
 
-        # Save to chat history
+        # Save to history
         st.session_state.messages.append({
             "role": "assistant",
             "content": formatted_answer
         })
 
-        # Display response
+        # Display
         with st.chat_message("assistant"):
             st.markdown(formatted_answer, unsafe_allow_html=True)
